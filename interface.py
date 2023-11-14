@@ -43,10 +43,10 @@ def main():
     def on_canvas_click(event):
         # Placeholder for click event handling
         print(f"Clicked at ({event.x}, {event.y})")
-        if all_close((event.x, event.y), (46, 91)):
-            add_army((event.x, event.y), canvas)
-            add_fleet((event.x, event.y), canvas)
-            add_factory((event.x, event.y), canvas)
+        #if all_close((event.x, event.y), (46, 91)):
+        add_army((event.x, event.y), canvas)
+        add_fleet((event.x, event.y), canvas)
+        add_factory((event.x, event.y), canvas)
     
 
     # Bind click event to the canvas
