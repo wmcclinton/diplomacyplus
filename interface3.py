@@ -4,7 +4,7 @@ import random
 from dic import territories 
 from tkinter.font import Font
 
-def add_territory_name(loc, canvas, name, text_color='black', bg_color='white', font_size=12):
+def add_territory_name(loc, canvas, name, text_color='black', bg_color='white', font_size=8):
     x, y = loc
     font = Font(family='Helvetica', size=font_size, weight='bold')
 
