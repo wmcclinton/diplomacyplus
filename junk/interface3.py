@@ -1,7 +1,7 @@
 import tkinter as tk
 from PIL import Image, ImageTk
 import random
-from dic import territories 
+from junk.dic import territories 
 from tkinter.font import Font
 
 def add_territory_name(loc, canvas, name, text_color='black', bg_color='white', font_size=8):

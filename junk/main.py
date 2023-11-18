@@ -2,7 +2,7 @@ import cmd
 import pygame
 import sys
 import random
-from map import get_territories
+from old_map import get_territories
 
 class DiplomacyPlus(cmd.Cmd):
     intro = ("Welcome to Diplomacy+.\n"
