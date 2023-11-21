@@ -1,10 +1,4 @@
-Move A Loc1 -> Loc2
-Support F Loc3 Move A Loc1 -> Loc2
-Subsidize Farm Loc4
-Subsidize Factory Loc4
-Subsidize Monument Loc4
-Build A Loc4
-Build F Loc5
-Policy Local Increase
-Policy Global Decrease User1
-Trade 10 Food -> 5 Material User1
+Donate 0
+Move F SAF -> S:IND
+Move A NAF -> EGY
+Trade 1 Ma -> 1 En Doni

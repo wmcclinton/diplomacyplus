@@ -4,8 +4,41 @@ import random
 from map.dic import territories 
 from tkinter.font import Font
 import glob
+import numpy as np
+
+np.random.seed(777)
+
+info = """\nCommand Types:
+Move (Unit A or F) (Loc) -> (Loc)
+Support (Unit A or F) (Loc) (Full Move Command)
+Subsidize (Unit Farm or Factory or Monument) (Loc)
+Build (Unit A or F) (Loc)
+Policy (Local or Global) (Increase or Decrease) (Player)
+Trade (Amount) (Resource Food, Material, Energy, or Hearts) -> (Amount) (Resource Food, Material, Energy, or Hearts) (Player)
+
+Costs:
+    Subsidize (Only in Fall) - Pay 2 En and 1 Ma to start a project (Farm, Factory, or Monument)
+    Build - Pay 2 Ma make A or F
+    Policy - Pay 3 He to enact either a local or global policy (decrease/increase a coup counter)
+Production Rule (Only in Spring): Farms -> 20 Food, Factories -> 1 Energy and 1 Material, Monument -> 1 Heart\n\n"""
+print(info)
 
 token_locations = set()
+
+def hex_to_rgb(hex_code):
+    # Remove the '#' character if present
+    hex_code = hex_code.lstrip('#')
+    # Convert the hex code to a tuple of three integers
+    return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
+
+class RGB():
+    def __init__(self, red, green, blue):
+        self.red = red
+        self.green = green
+        self.blue = blue
+
+    def __str__(self):
+        return '#{:02X}{:02X}{:02X}'.format(self.red,self.green,self.blue)
 
 def all_close(arg1, arg2, r = 10):
     if ((arg1[0] - arg2[0])**2 + (arg1[1] - arg2[1])**2)**0.5 < r:
@@ -89,20 +122,42 @@ def parse_start_file(file_path):
 
         return players
     
-def render(canvas):
+def next_year(year):
+    num = int(year[2:])
+    if year.startswith("Fa"):
+        season = "Sp"
+    else:
+        season = "Fa"
+        num += 1
+    return season + str(num)
+    
+def set_text(canvas, element, text):
+    canvas.itemconfig(element, text=text)  # Update the text
+
+def render(canvas, players):
     for code, territory in territories.items():
         # Owner
+        player = None
         if territory["owner"]:
             add_owner_name(territory['loc'], canvas, territory["owner"])
+            player = players[territory["owner"]]
         # Add Units
         if "F" in territory["units"]:
-            add_fleet(territory['loc'], canvas)
+            add_fleet(territory['loc'], canvas, color=player["Color"])
         if "A" in territory["units"]:
-            add_army(territory['loc'], canvas)
-        if "Farm" in territory["units"] or \
-            "Factory" in territory["units"] or \
-            "Monument" in territory["units"]:
-            add_factory(territory['loc'], canvas)
+            add_army(territory['loc'], canvas, color=player["Color"])
+        
+        if player:
+            red, green, blue = hex_to_rgb(player["Color"])
+            if "Farm" in territory["units"]:
+                color = RGB(red, green, blue)
+                add_factory(territory['loc'], canvas, color=str(color))
+            if "Factory" in territory["units"]:
+                color = RGB(red+60, green+60, blue+60)
+                add_factory(territory['loc'], canvas, color=str(color))
+            if "Monument" in territory["units"]:
+                color = RGB(red+120, green+120, blue+120)
+                add_factory(territory['loc'], canvas, color=str(color))
 
     
 def main():
@@ -115,22 +170,35 @@ def main():
     map_photo = ImageTk.PhotoImage(map_image)
 
     # Create a canvas to display the image
-    canvas = tk.Canvas(root, width=map_image.width, height=map_image.height)
+    canvas = tk.Canvas(root, width=map_image.width+50, height=map_image.height+265)
     canvas.pack()
 
     # Display the image on the canvas
     canvas.create_image(0, 0, anchor=tk.NW, image=map_photo)
 
     def on_canvas_click(event):
+        is_on_loc = False
         # Placeholder for click event handling
         print(f"Clicked at ({event.x}, {event.y})")
         for code, territory in territories.items():
             if all_close(territory['loc'], (event.x, event.y)):
-                print(code, territory)
+                click_info = "\n\n|" + code + "|\n\n"
+                for key, val in territory.items():
+                    click_info += key + ": " + str(val) + "\n"
+                set_text(canvas, textwindow, click_info)
+                is_on_loc = True
+        if not is_on_loc:
+            set_text(canvas, textwindow, info)
     
 
     # Bind click event to the canvas
     canvas.bind("<Button-1>", on_canvas_click)
+
+    # Window to display text
+    textwindow = canvas.create_text(10, map_image.height + 165, justify="left", text="Hello, Tkinter!", font=("Arial", 10), fill="white", anchor=tk.W)
+
+    # Window to display player text
+    playerwindow = canvas.create_text(10, map_image.height + 35, justify="left", text="Hello, Tkinter!", font=("Arial", 10), fill="white", anchor=tk.W)
 
     # Load Start
     players = {}
@@ -142,13 +210,18 @@ def main():
         assert len(val) == 6
         name = key.strip()
         print("Loading", name)
-        players[name] = {}
+        color = RGB(np.random.randint(0, 120), np.random.randint(0, 120), np.random.randint(0, 120))
+        players[name] = {"En": 1, "Fo": 25, "He": 1, "Ma": 1, "A": 1, "F": 1, "Farm": 1, "Factory": 1, "Monument": 1, "Land": 4, "Capital": None, "LOI": None, "Coup": 0, "QOL": 0, "Color": str(color)}
         countries = val[0].strip().split(' ')
         assert len(countries) == 4
-        for country in countries:
+        for i, country in enumerate(countries):
             assert country not in starting_countries
             starting_countries.add(country)
             territories[country]["owner"] = name
+            if i == 0:
+                players[name]["Capital"] = country
+            elif i == 1:
+                players[name]["LOI"] = country
         assert "Build F " in val[1]
         country = val[1].replace("Build F ", "").strip()
         territories[country]["units"].append("F")
@@ -182,9 +255,87 @@ def main():
 
     # TODO Simulate Orders
     print(orders)
+    year = "Fa1"
+    # Sort by season
+    for key, season_orders in orders.items():
+        year = key
+        for player_name, orders in season_orders.items():
+            # Pay Food: For each land owned pay 1 Food and for each unit pay another 1 Food
+            player = players[player_name]
+            food_payment = player["Land"] + player["Farm"] + player["Factory"] + player["Monument"] + player["A"] + player["F"]
+
+            # Check Starve: if you cannot pay enough food starve - lose 1 QOL and increase Coup Counter by 1, also you cannot increase QOL this turn
+            if player['Fo'] < food_payment:
+                player['QOL'] -= 1
+                player['Coup'] += 1
+                player['Fo'] = 0
+            else:
+                player['Fo'] = player['Fo'] - food_payment
+
+            ### Execute Orders
+            for order in orders:
+                # Donation -> QOL (2^(next QOL level) required non-food resources)
+                if order.startswith("Donate "):
+                    # TODO
+                    pass
+
+                # Move (Unit A or F) (Loc) -> (Loc)
+                ## Add move to list with placeholder list for support
+                if order.startswith("Move "):
+                    # TODO
+                    pass
+
+                # Support (Unit A or F) (Loc) (Full Move Command)
+                ## Support to move on list
+                if order.startswith("Support "):
+                    # TODO
+                    pass
+
+                # Subsidize (If Fall)(Unit Farm or Factory or Monument) (Loc)
+                ## Check to see if player has resources, and valid location then add unit
+                if order.startswith("Subsidize "):
+                    # TODO
+                    pass
+
+                # Build (Unit A or F) (Loc)
+                ## Check to see if player has resources, and valid location then add unit
+                if order.startswith("Build "):
+                    # TODO
+                    pass
+
+                # Policy (Local or Global) (Increase or Decrease) (Player)
+                ## Check to see if player has resources, then decrease or increases counter
+                if order.startswith("Policy "):
+                    # TODO
+                    pass
+
+                # Trade (Amount) (Resource Food, Material, Energy, or Hearts) -> (Amount) (Resource Food, Material, Energy, or Hearts) (Player)
+                ## Check to see if player has resources, then add to trade set (if matching execute)
+                if order.startswith("Trade "):
+                    # TODO
+                    pass
+
+        # Execute all movements
+        # TODO
+
+        # Produce (If Spring)
+        ## Add produced resources
+        for player_name, orders in season_orders.items():
+            player = players[player_name]
+            if "Sp" in key:
+                player["En"] += player["Factory"]
+                player["Fo"] += 30 * player["Farm"]
+                player["Ma"] += player["Factory"]
+                player["He"] += player["Monument"]
 
     # Renders Gamestate to clickable interface
-    render(canvas)
+    render(canvas, players)
+    playerinfo = next_year(year) + ":\n\n"
+    for key, val in players.items():
+        playerinfo += key + ": " + str(val) + "\n"
+    # Info
+    set_text(canvas, textwindow, info)
+    set_text(canvas, playerwindow, playerinfo)
 
     root.mainloop()
 
