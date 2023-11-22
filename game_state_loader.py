@@ -5,6 +5,7 @@ from map.dic import territories
 from tkinter.font import Font
 import glob
 import numpy as np
+import copy
 
 np.random.seed(777)
 
@@ -146,7 +147,7 @@ def render(canvas, players):
             add_fleet(territory['loc'], canvas, color=player["Color"])
         if "A" in territory["units"]:
             add_army(territory['loc'], canvas, color=player["Color"])
-        
+
         if player:
             red, green, blue = hex_to_rgb(player["Color"])
             if "Farm" in territory["units"]:
@@ -259,6 +260,10 @@ def main():
     # Sort by season
     for key, season_orders in orders.items():
         year = key
+        move_set = set()
+        support_orders = {}
+        unmatched_trades = set()
+        matched_trades = set()
         for player_name, orders in season_orders.items():
             # Pay Food: For each land owned pay 1 Food and for each unit pay another 1 Food
             player = players[player_name]
@@ -275,48 +280,220 @@ def main():
             ### Execute Orders
             for order in orders:
                 # Donation -> QOL (2^(next QOL level) required non-food resources)
+                total_amount = 0
                 if order.startswith("Donate "):
-                    # TODO
-                    pass
+                    if order.strip().replace("Donate ", "") != "0":
+                        items = order.strip().replace("Donate ", "").split(" ")
+                        amount = 0
+                        resource = None
+                        for i, item in enumerate(items):
+                            if i % 2 == 0:
+                                amount = int(item)
+                            elif i % 2 == 1:
+                                resource = item
+                                if resource in ["En", "Fo", "He", "Ma"]:
+                                    if player[resource] >= amount:
+                                        player[resource] -= amount
+                                        total_amount += amount
+                if total_amount >= 2 ** (player["QOL"] + 1):
+                    player["QOL"] += 1
 
                 # Move (Unit A or F) (Loc) -> (Loc)
                 ## Add move to list with placeholder list for support
                 if order.startswith("Move "):
-                    # TODO
-                    pass
+                    items = order.strip().replace("Move ", "").split(" ")
+                    if items[0] in ["A", "F"]:
+                        if items[1] in territories.keys() and player_name == territories[items[1]]["owner"]:
+                            if items[3] in territories[items[1]]["neighbors"]:
+                                if items[0] in territories[items[1]]["units"]:
+                                    move_set.add(order)
 
                 # Support (Unit A or F) (Loc) (Full Move Command)
                 ## Support to move on list
                 if order.startswith("Support "):
-                    # TODO
-                    pass
+                    items = order.strip().replace("Support ", "").split(" ")
+                    if items[0] in ["A", "F"]:
+                        if items[1] in territories.keys() and player_name == territories[items[1]]["owner"]:
+                            if items[1] in territories[items[5]]["neighbors"]:
+                                if items[1] in territories[items[3]]["units"]:
+                                    if items[3] in ["A", "F"]:
+                                        if items[5] in territories.keys():
+                                            if items[6] in territories[items[5]]["neighbors"]:
+                                                if items[3] in territories[items[5]]["units"]:
+                                                    mover_order = " ".join(items[2:])
+                                                    if mover_order not in support_orders: 
+                                                        support_orders[" ".join(items[2:])] = set()
+                                                    support_orders[" ".join(items[2:])].add(items[1])
 
                 # Subsidize (If Fall)(Unit Farm or Factory or Monument) (Loc)
                 ## Check to see if player has resources, and valid location then add unit
                 if order.startswith("Subsidize "):
-                    # TODO
-                    pass
+                    items = order.strip().replace("Subsidize ", "").split(" ")
+                    if "Fa" in key:
+                        if items[0] in ["Farm", "Factory", "Monument"]:
+                            if items[1] in territories.keys() and player_name == territories[items[1]]["owner"]:
+                                if "Farm" not in territories[items[1]]["units"]:
+                                    if "Factory" not in territories[items[1]]["units"]:
+                                        if "Monument" not in territories[items[1]]["units"]:
+                                            if player["En"] >= 2 and player["Ma"] >= 1:
+                                                player["En"] -= 2
+                                                player["Ma"] -= 1
+                                                territories[items[1]]["units"].append(items[0])
 
                 # Build (Unit A or F) (Loc)
                 ## Check to see if player has resources, and valid location then add unit
                 if order.startswith("Build "):
-                    # TODO
-                    pass
+                    items = order.strip().replace("Build ", "").split(" ")
+                    if items[1] in territories.keys() and player_name == territories[items[1]]["owner"]:
+                            if "A" not in territories[items[1]]["units"]:
+                                if "F" not in territories[items[1]]["units"]:
+                                    if items[0] == "A":
+                                        if "S:" not in items[1]:
+                                            if player["Ma"] >= 2:
+                                                player["Ma"] -= 2
+                                                territories[items[1]]["units"].append(items[0])
+                                    elif items[0] == "F":
+                                        is_boarded_sea = False
+                                        for loc in territories[items[1]]["neighbors"]:
+                                           if "S:" in loc:
+                                                is_boarded_sea = True
+                                        if "S:" in items[1] or is_boarded_sea:
+                                            if player["Ma"] >= 2:
+                                                player["Ma"] -= 2
+                                                territories[items[1]]["units"].append(items[0])
 
                 # Policy (Local or Global) (Increase or Decrease) (Player)
                 ## Check to see if player has resources, then decrease or increases counter
                 if order.startswith("Policy "):
-                    # TODO
-                    pass
+                    items = order.strip().replace("Policy ", "").split(" ")
+                    if player["He"] >= 3:
+                        if items[0] == "Local":
+                            player["He"] -= 3
+                            if items[1] == "Increase":
+                                player["Coup"] += 1
+                            elif items[1] == "Decrease" and player["Coup"] > 0:
+                                player["Coup"] -= 1
+                        elif items[0] == "Global":
+                            player["He"] -= 3
+                            if items[1] == "Increase":
+                                players[items[2]]["Coup"] += 1
+                            elif items[1] == "Decrease" and players[items[2]]["Coup"] > 0:
+                                players[items[2]]["Coup"] -= 1
+                                
 
                 # Trade (Amount) (Resource Food, Material, Energy, or Hearts) -> (Amount) (Resource Food, Material, Energy, or Hearts) (Player)
                 ## Check to see if player has resources, then add to trade set (if matching execute)
                 if order.startswith("Trade "):
-                    # TODO
-                    pass
+                    items = order.strip().replace("Trade ", "").split(" -> ")
+                    sell_order = items[0]
+                    sell_to = items[1].split(" ")[-1]
+                    buy_order = " ".join(items[1].split(" ")[:-1])
+                    matching_order = sell_to + " Trade " + buy_order + " -> " + sell_order + " " + player_name
+                    if matching_order in unmatched_trades:
+                        unmatched_trades.remove(matching_order)
+                        matched_trades.add(matching_order)
+                    else:
+                        unmatched_trades.add(player_name + " " + order.strip())
+
+        # Execute all trades
+        for trade in matched_trades:
+            is_valid_trade = True
+
+            items = trade.strip().split(" -> ")
+            player1_items = items[0].split(" ")
+            player1 = player1_items[0]
+            player1_items = player1_items[2:]
+            player1 = players[player1]
+
+            amount = 0
+            resource = None
+            resources = set(["En", "Fo", "He", "Ma"])
+            for i, item in enumerate(player1_items):
+                if i % 2 == 0:
+                    amount = int(item)
+                elif i % 2 == 1:
+                    resource = item
+                    if resource in resources:
+                        resources.remove(resource)
+                        if player1[resource] < amount:
+                            is_valid_trade = False
+                    else:
+                        is_valid_trade = False   
+            
+            player2_items = items[1].split(" ")
+            player2 = player2_items[-1]
+            player2_items = player2_items[:-1]
+            player2 = players[player2]
+
+            amount = 0
+            resource = None
+            resources = set(["En", "Fo", "He", "Ma"])
+            for i, item in enumerate(player2_items):
+                if i % 2 == 0:
+                    amount = int(item)
+                elif i % 2 == 1:
+                    resource = item
+                    if resource in resources:
+                        resources.remove(resource)
+                        if player2[resource] < amount:
+                            is_valid_trade = False
+                    else:
+                        is_valid_trade = False
+
+            if is_valid_trade:
+                amount = 0
+                resource = None
+                resources = set(["En", "Fo", "He", "Ma"])
+                for i, item in enumerate(player1_items):
+                    if i % 2 == 0:
+                        amount = int(item)
+                    elif i % 2 == 1:
+                        resource = item
+                        player1[resource] -= amount
+                        player2[resource] += amount
+
+                amount = 0
+                resource = None
+                resources = set(["En", "Fo", "He", "Ma"])
+                for i, item in enumerate(player2_items):
+                    if i % 2 == 0:
+                        amount = int(item)
+                    elif i % 2 == 1:
+                        resource = item
+                        player2[resource] -= amount
+                        player1[resource] += amount
 
         # Execute all movements
-        # TODO
+        tmp_move_set = copy.deepcopy(move_set)
+        attacked_loc = set()
+        for move in tmp_move_set:
+            items = move.strip().replace("Move ", "").split(" ")
+            if "A" not in territories[items[3]]["units"]:
+                if "F" not in territories[items[3]]["units"]:
+                    territories[items[1]]["units"].remove(items[0])
+                    territories[items[3]]["units"].append(items[0])
+                    territories[items[3]]["owner"] = territories[items[1]]["owner"]
+                    move_set.remove(move)
+                else:
+                    attacked_loc.add(items[3])
+            else:
+                attacked_loc.add(items[3])
+
+        # TODO Test attacking with support [WARNING MAY NOT WORK]
+        for move in move_set:
+            items = move.strip().replace("Move ", "").split(" ")
+            attack_strength = 1
+            for _ in support_orders[move.strip()]:
+                attack_strength += 1
+            hold_strength = 0
+            for order in support_orders.keys():
+                if " -> " + items[3] and order != move.strip():
+                    for _ in support_orders[order]:
+                        hold_strength += 1
+            if attack_strength > hold_strength:
+                territories[items[1]]["units"].remove(items[0])
+                territories[items[3]]["units"].append(items[0])
+                territories[items[3]]["owner"] = territories[items[1]]["owner"]
 
         # Produce (If Spring)
         ## Add produced resources
