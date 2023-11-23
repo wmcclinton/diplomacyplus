@@ -1,0 +1,3 @@
+Donate 0
+Move F S:IND -> IND
+Move A EGY HOLD

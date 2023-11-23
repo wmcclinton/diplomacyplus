@@ -1,0 +1,4 @@
+Donate 0
+Move F IND -> CHI
+Move A EGY HOLD
+Subsidize Factory EAF

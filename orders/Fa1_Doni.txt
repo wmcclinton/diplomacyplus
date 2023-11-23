@@ -1,4 +1,4 @@
 Donate 0
-Move F UKR -> S:BAL
+Move F UKR -> SEU
 Move A UZB -> MIE
 Trade 1 En -> 1 Ma Willie

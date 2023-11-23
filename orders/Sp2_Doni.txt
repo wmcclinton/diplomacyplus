@@ -1,0 +1,4 @@
+Donate 0
+Move A EGY -> NAF
+Move F S:MED -> EGY
+Move A UZB -> CHI

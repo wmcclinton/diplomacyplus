@@ -7,6 +7,8 @@ import glob
 import numpy as np
 import copy
 
+COLOR = "white"
+
 np.random.seed(777)
 
 info = """\nCommand Types:
@@ -140,7 +142,8 @@ def render(canvas, players):
         # Owner
         player = None
         if territory["owner"]:
-            add_owner_name(territory['loc'], canvas, territory["owner"])
+            if "S:" not in code:
+                add_owner_name(territory['loc'], canvas, territory["owner"])
             player = players[territory["owner"]]
         # Add Units
         if "F" in territory["units"]:
@@ -171,7 +174,7 @@ def main():
     map_photo = ImageTk.PhotoImage(map_image)
 
     # Create a canvas to display the image
-    canvas = tk.Canvas(root, width=map_image.width+50, height=map_image.height+265)
+    canvas = tk.Canvas(root, width=map_image.width+400, height=map_image.height+365)
     canvas.pack()
 
     # Display the image on the canvas
@@ -196,10 +199,10 @@ def main():
     canvas.bind("<Button-1>", on_canvas_click)
 
     # Window to display text
-    textwindow = canvas.create_text(10, map_image.height + 165, justify="left", text="Hello, Tkinter!", font=("Arial", 10), fill="white", anchor=tk.W)
+    textwindow = canvas.create_text(10, map_image.height + 185, justify="left", text="Hello, Tkinter!", font=("Arial", 10), fill=COLOR, anchor=tk.W)
 
     # Window to display player text
-    playerwindow = canvas.create_text(10, map_image.height + 35, justify="left", text="Hello, Tkinter!", font=("Arial", 10), fill="white", anchor=tk.W)
+    playerwindow = canvas.create_text(10, map_image.height + 45, justify="left", text="Hello, Tkinter!", font=("Arial", 10), fill=COLOR, anchor=tk.W)
 
     # Load Start
     players = {}
@@ -243,10 +246,12 @@ def main():
     # Get Order in Orders Folder
     orders = {}
     for order_file in glob.glob("orders/*"):
+        order_file= order_file.replace("\\","/")
         if "0_start.txt" in order_file:
             continue
         season = order_file.split("/")[-1].split("_")[0]
         name = order_file.split("/")[-1].split("_")[1].split(".")[0]
+        #import ipdb; ipdb.set_trace()
         assert "Fa" in season or "Sp" in season
         assert name in list(players.keys())
         if season not in orders:
@@ -256,9 +261,17 @@ def main():
 
     # TODO Simulate Orders
     print(orders)
-    year = "Fa1"
+    year = "Sp0"
     # Sort by season
-    for key, season_orders in orders.items():
+    def sort_key(s):
+        # Split each string into alphabetical and numerical parts
+        alpha_part = ''.join(filter(str.isalpha, s))
+        num_part = int(''.join(filter(str.isdigit, s)))
+        return num_part, alpha_part
+    all_orders = copy.deepcopy(orders)
+    order_keys = sorted(list(all_orders.keys()), key=sort_key)
+    for key in order_keys:
+        season_orders = all_orders[key]
         year = key
         move_set = set()
         support_orders = {}
@@ -268,6 +281,7 @@ def main():
             # Pay Food: For each land owned pay 1 Food and for each unit pay another 1 Food
             player = players[player_name]
             food_payment = player["Land"] + player["Farm"] + player["Factory"] + player["Monument"] + player["A"] + player["F"]
+            print(key, player_name, "food_payment", food_payment)
 
             # Check Starve: if you cannot pay enough food starve - lose 1 QOL and increase Coup Counter by 1, also you cannot increase QOL this turn
             if player['Fo'] < food_payment:
@@ -275,7 +289,7 @@ def main():
                 player['Coup'] += 1
                 player['Fo'] = 0
             else:
-                player['Fo'] = player['Fo'] - food_payment
+                player['Fo'] -= food_payment
 
             ### Execute Orders
             for order in orders:
@@ -304,9 +318,18 @@ def main():
                     items = order.strip().replace("Move ", "").split(" ")
                     if items[0] in ["A", "F"]:
                         if items[1] in territories.keys() and player_name == territories[items[1]]["owner"]:
-                            if items[3] in territories[items[1]]["neighbors"]:
-                                if items[0] in territories[items[1]]["units"]:
-                                    move_set.add(order)
+                            if items[2] == "->":
+                                if items[3] in territories[items[1]]["neighbors"]:
+                                    if items[0] in territories[items[1]]["units"]:
+                                        if items[0] == "A":
+                                            move_set.add(order)
+                                        if items[0] == "F":
+                                            is_boarded_sea = False
+                                            for loc in territories[items[3]]["neighbors"]:
+                                                if "S:" in loc:
+                                                    is_boarded_sea = True
+                                            if "S:" in items[3] or is_boarded_sea:
+                                                move_set.add(order)
 
                 # Support (Unit A or F) (Loc) (Full Move Command)
                 ## Support to move on list
@@ -314,12 +337,12 @@ def main():
                     items = order.strip().replace("Support ", "").split(" ")
                     if items[0] in ["A", "F"]:
                         if items[1] in territories.keys() and player_name == territories[items[1]]["owner"]:
-                            if items[1] in territories[items[5]]["neighbors"]:
-                                if items[1] in territories[items[3]]["units"]:
+                            if items[1] in territories[items[4]]["neighbors"]:
+                                if items[0] in territories[items[1]]["units"]:
                                     if items[3] in ["A", "F"]:
-                                        if items[5] in territories.keys():
-                                            if items[6] in territories[items[5]]["neighbors"]:
-                                                if items[3] in territories[items[5]]["units"]:
+                                        if items[4] in territories.keys():
+                                            if items[6] in territories[items[4]]["neighbors"]:
+                                                if items[3] in territories[items[4]]["units"]:
                                                     mover_order = " ".join(items[2:])
                                                     if mover_order not in support_orders: 
                                                         support_orders[" ".join(items[2:])] = set()
@@ -468,40 +491,64 @@ def main():
         attacked_loc = set()
         for move in tmp_move_set:
             items = move.strip().replace("Move ", "").split(" ")
-            if "A" not in territories[items[3]]["units"]:
-                if "F" not in territories[items[3]]["units"]:
-                    territories[items[1]]["units"].remove(items[0])
-                    territories[items[3]]["units"].append(items[0])
-                    territories[items[3]]["owner"] = territories[items[1]]["owner"]
-                    move_set.remove(move)
+            is_going_to_be_empty = True
+            for m in tmp_move_set:
+                if move != m:
+                    m_items = m.strip().replace("Move ", "").split(" ")
+                    if m_items[3] == items[3]:
+                        is_going_to_be_empty = False
+            if is_going_to_be_empty:
+                if "A" not in territories[items[3]]["units"]:
+                    if "F" not in territories[items[3]]["units"]:
+                        territories[items[1]]["units"].remove(items[0])
+                        territories[items[3]]["units"].append(items[0])
+                        territories[items[3]]["owner"] = territories[items[1]]["owner"]
+                        move_set.remove(move)
+                    else:
+                        attacked_loc.add(items[3])
                 else:
                     attacked_loc.add(items[3])
-            else:
-                attacked_loc.add(items[3])
 
         # TODO Test attacking with support [WARNING MAY NOT WORK]
         for move in move_set:
             items = move.strip().replace("Move ", "").split(" ")
             attack_strength = 1
-            for _ in support_orders[move.strip()]:
-                attack_strength += 1
-            hold_strength = 0
-            for order in support_orders.keys():
-                if " -> " + items[3] and order != move.strip():
-                    for _ in support_orders[order]:
-                        hold_strength += 1
-            if attack_strength > hold_strength:
-                territories[items[1]]["units"].remove(items[0])
-                territories[items[3]]["units"].append(items[0])
-                territories[items[3]]["owner"] = territories[items[1]]["owner"]
+            if move.strip() in support_orders.keys():
+                for _ in support_orders[move.strip()]:
+                    attack_strength += 1
+                hold_strength = 0
+                for order in support_orders.keys():
+                    if " -> " + items[3] and order != move.strip():
+                        for _ in support_orders[order]:
+                            hold_strength += 1
+                if attack_strength > hold_strength:
+                    if "A" in territories[items[3]]["units"]:
+                        territories[items[3]]["units"].remove("A")
+                    if "F" in territories[items[3]]["units"]:
+                        territories[items[3]]["units"].remove("F")
+                    territories[items[1]]["units"].remove(items[0])
+                    territories[items[3]]["units"].append(items[0])
+                    territories[items[3]]["owner"] = territories[items[1]]["owner"]
+
+        for player in players.keys():
+            players[player]["Land"] = 0
+            for unit in ["A", "F", "Farm", "Factory", "Monument"]:
+                players[player][unit] = 0
+            for territory in territories.keys():
+                if territories[territory]["owner"] == player and "S:" not in territory:
+                    players[player]["Land"] += 1
+                    for unit in ["A", "F", "Farm", "Factory", "Monument"]:
+                        if unit in territories[territory]["units"]:
+                            players[player][unit] += 1
+            players[player]["EST_FoPay"] = players[player]["Land"] + players[player]["Farm"] + players[player]["Factory"] + players[player]["Monument"] + players[player]["A"] + players[player]["F"]
 
         # Produce (If Spring)
         ## Add produced resources
         for player_name, orders in season_orders.items():
             player = players[player_name]
-            if "Sp" in key:
+            if "Sp" in year:
                 player["En"] += player["Factory"]
-                player["Fo"] += 30 * player["Farm"]
+                player["Fo"] += 25 * player["Farm"]
                 player["Ma"] += player["Factory"]
                 player["He"] += player["Monument"]
 

@@ -1,0 +1,4 @@
+Donate 0
+Move F SEU -> S:MED
+Move A MIE -> EGY
+Build A UZB
