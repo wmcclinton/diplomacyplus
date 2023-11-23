@@ -215,7 +215,7 @@ def main():
         name = key.strip()
         print("Loading", name)
         color = RGB(np.random.randint(0, 120), np.random.randint(0, 120), np.random.randint(0, 120))
-        players[name] = {"En": 1, "Fo": 25, "He": 1, "Ma": 1, "A": 1, "F": 1, "Farm": 1, "Factory": 1, "Monument": 1, "Land": 4, "Capital": None, "LOI": None, "Coup": 0, "QOL": 0, "Color": str(color)}
+        players[name] = {"En": 1, "Fo": 20, "He": 1, "Ma": 1, "A": 1, "F": 1, "Farm": 1, "Factory": 1, "Monument": 1, "Land": 4, "Capital": None, "LOI": None, "Coup": 0, "QOL": 0, "Color": str(color)}
         countries = val[0].strip().split(' ')
         assert len(countries) == 4
         for i, country in enumerate(countries):
@@ -542,15 +542,13 @@ def main():
                             players[player][unit] += 1
             players[player]["EST_FoPay"] = players[player]["Land"] + players[player]["Farm"] + players[player]["Factory"] + players[player]["Monument"] + players[player]["A"] + players[player]["F"]
 
-        # Produce (If Spring)
-        ## Add produced resources
-        for player_name, orders in season_orders.items():
-            player = players[player_name]
+            # Produce (If Spring)
+            ## Add produced resources
             if "Sp" in year:
-                player["En"] += player["Factory"]
-                player["Fo"] += 25 * player["Farm"]
-                player["Ma"] += player["Factory"]
-                player["He"] += player["Monument"]
+                players[player]["En"] += players[player]["Factory"]
+                players[player]["Fo"] += 20 * players[player]["Farm"]
+                players[player]["Ma"] += players[player]["Factory"]
+                players[player]["He"] += players[player]["Monument"]
 
     # Renders Gamestate to clickable interface
     render(canvas, players)
